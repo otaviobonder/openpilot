@@ -61,6 +61,11 @@ static void update_state(UIState *s) {
   }
   scene.started = sm["deviceState"].getDeviceState().getStarted() && scene.ignition;
 
+  if (sm.updated("carControl")) {
+    auto car_control = sm["carControl"].getCarControl();
+    scene.pause_mads = car_control.getEnabled() && !car_control.getLatActive();
+  }
+
   auto params = Params();
   scene.recording_audio = params.getBool("RecordAudio") && scene.started;
 }
@@ -77,7 +82,8 @@ void UIState::updateStatus() {
     if (state == cereal::SelfdriveState::OpenpilotState::PRE_ENABLED || state == cereal::SelfdriveState::OpenpilotState::OVERRIDING) {
       status = STATUS_OVERRIDE;
     } else {
-      status = ss.getEnabled() ? STATUS_ENGAGED : STATUS_DISENGAGED;
+      UIState *my_s = uiState();
+      status = ss.getEnabled() ? my_s->scene.pause_mads ? STATUS_DISENGAGED : STATUS_ENGAGED : STATUS_DISENGAGED;
     }
   }
 
@@ -102,6 +108,7 @@ UIState::UIState(QObject *parent) : QObject(parent) {
     "modelV2", "controlsState", "liveCalibration", "radarState", "deviceState",
     "pandaStates", "carParams", "driverMonitoringState", "carState", "driverStateV2",
     "wideRoadCameraState", "managerState", "selfdriveState", "longitudinalPlan",
+    "carControl",
   });
   prime_state = new PrimeState(this);
   language = QString::fromStdString(Params().get("LanguageSetting"));
