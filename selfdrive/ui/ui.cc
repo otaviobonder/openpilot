@@ -79,10 +79,10 @@ void UIState::updateStatus() {
   if (scene.started && sm->updated("selfdriveState")) {
     auto ss = (*sm)["selfdriveState"].getSelfdriveState();
     auto state = ss.getState();
+    UIState *my_s = uiState();
     if (state == cereal::SelfdriveState::OpenpilotState::PRE_ENABLED || state == cereal::SelfdriveState::OpenpilotState::OVERRIDING) {
-      status = STATUS_OVERRIDE;
+      status = my_s->scene.pause_mads ? STATUS_DISENGAGED : STATUS_OVERRIDE;
     } else {
-      UIState *my_s = uiState();
       status = ss.getEnabled() ? my_s->scene.pause_mads ? STATUS_DISENGAGED : STATUS_ENGAGED : STATUS_DISENGAGED;
     }
   }
