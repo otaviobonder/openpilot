@@ -20,3 +20,7 @@ if [ -z "$AGNOS_VERSION" ]; then
 fi
 
 export STAGING_ROOT="/data/safe_staging"
+
+# GWM Haval H6: comma isn't connected to OBD-II, so FW fingerprinting can't work
+export FINGERPRINT="GWM_HAVAL_H6"
+export SKIP_FW_QUERY=1
