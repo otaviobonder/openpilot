@@ -12,7 +12,10 @@ from opendbc.sunnypilot.car.hyundai.values import HyundaiFlagsSP, HyundaiSafetyF
 from opendbc.sunnypilot.car.tesla.values import MadsScreenButtonType, TeslaFlagsSP
 
 
-MADS_NO_ACC_MAIN_BUTTON = ("rivian", "tesla")
+MADS_NO_ACC_MAIN_BUTTON = ("gwm", "rivian", "tesla")
+
+# no lane keeping switch either, the cancel button turns lateral off
+MADS_CANCEL_DISENGAGES_LATERAL = ("gwm",)
 
 
 class MadsSteeringModeOnBrake:

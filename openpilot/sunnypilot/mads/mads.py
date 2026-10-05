@@ -10,7 +10,8 @@ from openpilot.cereal import log, custom
 from opendbc.car import structs
 from opendbc.car.hyundai.values import HyundaiFlags
 from openpilot.common.params import Params
-from openpilot.sunnypilot.mads.helpers import MadsSteeringModeOnBrake, read_steering_mode_param, MADS_NO_ACC_MAIN_BUTTON
+from openpilot.sunnypilot.mads.helpers import MadsSteeringModeOnBrake, read_steering_mode_param, MADS_NO_ACC_MAIN_BUTTON, \
+                                              MADS_CANCEL_DISENGAGES_LATERAL
 from openpilot.sunnypilot.mads.state import StateMachine, GEARS_ALLOW_PAUSED_SILENT
 
 State = custom.ModularAssistiveDrivingSystem.ModularAssistiveDrivingSystemState
@@ -50,6 +51,8 @@ class ModularAssistiveDrivingSystem:
 
     if self.CP.brand in MADS_NO_ACC_MAIN_BUTTON:
       self.no_main_cruise = True
+
+    self.cancel_disengages_lateral = self.CP.brand in MADS_CANCEL_DISENGAGES_LATERAL
 
     # read params on init
     self.enabled_toggle = self.params.get_bool("Mads")
@@ -169,7 +172,10 @@ class ModularAssistiveDrivingSystem:
 
     for be in CS.buttonEvents:
       if be.type == ButtonType.cancel:
-        if not self.selfdrive.enabled and self.selfdrive.enabled_prev:
+        if self.cancel_disengages_lateral:
+          if be.pressed and self.enabled:
+            self.events_sp.add(EventNameSP.lkasDisable)
+        elif not self.selfdrive.enabled and self.selfdrive.enabled_prev:
           self.events_sp.add(EventNameSP.manualLongitudinalRequired)
       if be.type == ButtonType.lkas and be.pressed and (CS.cruiseState.available or self.allow_always):
         if self.enabled:

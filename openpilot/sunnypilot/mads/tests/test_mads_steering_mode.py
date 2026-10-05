@@ -20,6 +20,8 @@ State = custom.ModularAssistiveDrivingSystem.ModularAssistiveDrivingSystemState
 EventName = log.OnroadEvent.EventName
 EventNameSP = custom.OnroadEventSP.EventName
 SafetyModel = structs.CarParams.SafetyModel
+ButtonEvent = structs.CarState.ButtonEvent
+ButtonType = structs.CarState.ButtonEvent.Type
 
 
 def make_car_state(brake_pressed=False, regen_braking=False, standstill=False, v_ego=0.0):
@@ -45,10 +47,10 @@ def make_params_mock(mocker, values):
   return params
 
 
-def make_mads(mocker, steering_mode):
+def make_mads(mocker, steering_mode, brand="hyundai"):
   sd = mocker.MagicMock()
   sd.CP = structs.CarParams()
-  sd.CP.brand = "hyundai"
+  sd.CP.brand = brand
   sd.CP_SP = structs.CarParamsSP()
   sd.params = mocker.MagicMock()
   sd.params.get_bool = mocker.MagicMock(side_effect=lambda k: {
@@ -185,6 +187,60 @@ class TestRemainActiveMode(OpenpilotTestCase):
     sd.events.add(EventName.pedalPressed)
     run_frames(mads, sd, make_car_state(brake_pressed=True, v_ego=10.0))
     assert mads.state_machine.state == State.enabled
+
+
+# cancel button turns lateral off on cars without a lane keeping switch
+
+def make_cancel_car_state(pressed, **kwargs):
+  cs = make_car_state(**kwargs)
+  cs.buttonEvents = [ButtonEvent(type=ButtonType.cancel, pressed=pressed)]
+  return cs
+
+
+def make_enabled_mads(mocker, brand):
+  mads, sd = make_mads(mocker, MadsSteeringModeOnBrake.REMAIN_ACTIVE, brand)
+  mads.state_machine.state = State.enabled
+  mads.enabled = True
+  mads.active = True
+  return mads, sd
+
+
+class TestCancelDisengagesLateral(OpenpilotTestCase):
+  def test_cancel_press_disables(self, mocker):
+    mads, sd = make_enabled_mads(mocker, "gwm")
+    run_frames(mads, sd, make_cancel_car_state(True, v_ego=10.0))
+    assert mads.state_machine.state == State.disabled
+
+  def test_cancel_release_keeps_lateral(self, mocker):
+    mads, sd = make_enabled_mads(mocker, "gwm")
+    run_frames(mads, sd, make_cancel_car_state(False, v_ego=10.0))
+    assert mads.state_machine.state == State.enabled
+
+  def test_cancel_while_engaged_disables_lateral_too(self, mocker):
+    # selfdrived already disengaged on the cancel this frame
+    mads, sd = make_enabled_mads(mocker, "gwm")
+    sd.enabled_prev = True
+    mads.update_events(make_cancel_car_state(True, v_ego=10.0))
+    assert sd.events_sp.has(EventNameSP.lkasDisable)
+    assert not sd.events_sp.has(EventNameSP.manualLongitudinalRequired)
+
+  def test_cancel_while_disabled_does_nothing(self, mocker):
+    mads, sd = make_mads(mocker, MadsSteeringModeOnBrake.REMAIN_ACTIVE, "gwm")
+    mads.update_events(make_cancel_car_state(True, v_ego=10.0))
+    assert not sd.events_sp.has(EventNameSP.lkasDisable)
+
+  def test_brake_keeps_lateral(self, mocker):
+    mads, sd = make_enabled_mads(mocker, "gwm")
+    sd.events.add(EventName.pedalPressed)
+    run_frames(mads, sd, make_car_state(brake_pressed=True, v_ego=10.0))
+    assert mads.state_machine.state == State.enabled
+
+  def test_other_brands_keep_lateral_on_cancel(self, mocker):
+    mads, sd = make_enabled_mads(mocker, "hyundai")
+    sd.enabled_prev = True
+    mads.update_events(make_cancel_car_state(True, v_ego=10.0))
+    assert not sd.events_sp.has(EventNameSP.lkasDisable)
+    assert sd.events_sp.has(EventNameSP.manualLongitudinalRequired)
 
 
 # lateral mismatch counter
